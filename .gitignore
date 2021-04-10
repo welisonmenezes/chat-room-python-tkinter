@@ -1,0 +1,4 @@
+server_files/
+server_files/*
+__pycache__/
+__pycache__/*
