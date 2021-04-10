@@ -5,7 +5,3 @@ class Message(object):
         self.type = 'text'
         self.recipient = None
         self.command = None
-
-# clients = []
-# logins = []
-# obj_to_send = Message()
