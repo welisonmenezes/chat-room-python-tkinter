@@ -18,23 +18,15 @@ def broadcast(current_client, message):
         recipient = clients[index]
         if current_client != recipient:
             send_serialized(recipient, message)
-            send_serialized(current_client, message)
+            if message.command != 'REQUEST_PATH':
+                send_serialized(current_client, message)
     else:
         for client in clients:
-            send_serialized(client, message)
-
-
-# def broadcastFile(current_client, message):
-#     if message.recipient != None and message.recipient != 'None':
-#         index = logins.index(message.recipient)
-#         recipient = clients[index]
-#         if current_client != recipient:
-#             recipient.send(message)
-#             current_client.send(message)
-#     else:
-#         for client in clients:
-#             #if current_client != client:
-#             client.send(message)
+            if message.command == 'REQUEST_PATH':
+                if client != current_client:
+                    send_serialized(client, message)
+            else:
+                send_serialized(client, message)
 
 
 def broadcast_users_update(client):
@@ -81,19 +73,19 @@ def get_login_by_client(client):
 
 def server_receive_save_file(client, message, threadId):
     global the_file
-    # recebo o nome do arquivo enviado
-
     the_recipient = None
-    the_file_name = message
-    the_file_path = f'{threadId}.jpg'
+    received_file_name = message # recebe o nome do arquivo enviado
+    saved_file_name = f'{threadId}.jpg' # gera nome único para salvar o arquivo recebido
 
-    #abro o arquio temporario
-    arq = open(f'server_files{os.path.sep}{the_file_path}', 'wb')
+    # abre um arquio para salvar no servidor
+    arq = open(f'server_files{os.path.sep}{saved_file_name}', 'wb')
 
+    # inicia a escrita do novo arquivo
     cont = 0
     while message:
         if cont > 0:
-            # se receber a flag done, sai do loop
+            # na primeria iteração pula, pois é onde recebeu o nome do arquivo
+            # ao receber a flag b'done' finaliza a escrita
             if cont == 1:
                 the_recipient = message.decode()
             elif message == b'done':
@@ -103,19 +95,21 @@ def server_receive_save_file(client, message, threadId):
             message = client.recv(1024)
         else:
             # pulo a primeira msg (no do arquivo)
-            message = client.recv(1024)
-            
+            message = client.recv(1024) 
         cont = cont + 1
 
-    # fecho o arquivo temporario
+    # fecha o arquivo 
     arq.close()
     time.sleep(.5)
 
+    # após salvar o arquivo no servidor, notifica os destinatários
+    # para que os mesmos setem onde querem salvar lá no ambiente deles
+    # o cliente notificará após isso, para que o servidor possa prosseguir
     message = Message()
     if the_recipient != None and the_recipient != 'None':
         message.recipient = the_recipient
     message.command = 'REQUEST_PATH'
-    message.message = f'{the_file_name.decode()}'
+    message.message = f'{received_file_name.decode()}'
     message.user = get_login_by_client(client)
     broadcast(client, message)
     message.command = None
@@ -123,39 +117,36 @@ def server_receive_save_file(client, message, threadId):
     message.message = None
     message.user = None
 
-    the_file = [the_file_path, the_file_name]
+    # salva globalmente o nome do arquivo enviado e o nome do arquivo salvo no servidor
+    # essa informação será usada no próximo passo (ao enviar para os destinatários)
+    the_file = [saved_file_name, received_file_name]
     
-
-
 
 def server_send_file_to_client(client):
     global the_file
-    print(the_file)
-    # envio o nome do arquivo enviado
+
+    # envia o nome do arquivo enviado (pois o cliente salvará com o mesmo nome)
     client.send(the_file[1])
     time.sleep(.1)
 
-    # abro o arquivo temporário, leio seu conteúdo e envio ao cliente
+    # abre o arquivo salvo no servidor, lê seu conteúdo e envio ao cliente
     arq2 = open(f'server_files{os.path.sep}{the_file[0]}', 'rb')
     data = arq2.read()
     client.send(data)
     time.sleep(.1)
 
-    # envio a flag de done para o cliente
+    # envia a flag de done para o cliente, para que ele possa fechar o arquivo do seu lado
     client.send(b'done')
     time.sleep(.1)
 
-    # fecho o arquivo que foi lido
+    # fecha o arquivo que foi lido
     arq2.close()
-    print('Arquivo do servidor fechado.')
-
-
 
 
 def handle(client, threadId):
     global the_file
+
     while True:
-        #print(f'Id da trhead é: {threadId}')
         message = Message()
         try:
             b_data = client.recv(1024)
@@ -163,9 +154,11 @@ def handle(client, threadId):
                 try:
                     data = get_serialized_message(client, b_data)
 
+                    # o cliente requisitou para fazer o login
                     if data.command == 'LOGIN':
                         make_client_login(client, data, message)
 
+                    # o cliente requisitou para fazer o logout
                     elif data.command == 'LOGOUT':
                         message = Message()
                         message.command = 'LOGOUT_DONE'
@@ -174,45 +167,43 @@ def handle(client, threadId):
                         time.sleep(.1)
                         logout(client)
                         break
-
+                    
+                    # o cliente escolheu onde quer salver e notifiou o servidor 
+                    # (o mesmo enviará o arquivo agora)
                     elif data.command == 'SEND_PATH':
                         server_send_file_to_client(client)
 
+                    # broatcast das mensagens em geral
                     else:
                         broadcast(client, data)
 
                 except:
+                    # broadcast dos arquivos binários (arquivos incluso)
                     try:
                         server_receive_save_file(client, b_data, threadId)
-                    except:
+                    except Exception as e:
                         pass
             else:
-                print('erro 1')
                 logout(client)
                 break
         except Exception as e:
-            print(e)
-            print('erro 2')
             logout(client)
             break
 
 
-
-
-
-# escutando para receber novas conexões
+# escuta para receber novas conexões
 def receive():
     while True:
         message = Message()
         client, address = server.accept()
         print(f'Conectado com {str(address)}')
 
+        # recebe primeiro contato do cliente (solicitação de login)
         data = get_serialized_message(client)
-
         make_client_login(client, data, message)
         
         threadId = str(uuid.uuid4())
         threading.Thread(target=handle, args=(client, threadId)).start()
 
-print('Server is listening...')
+print('Servidor online...')
 receive()
