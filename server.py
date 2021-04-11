@@ -1,23 +1,21 @@
 import threading, socket, pickle, base64, time, uuid, os, logging
+import os.path
+from os import path
 from datetime import datetime
-import tkinter as tk
-from tkinter import *
+from gui_helper import *
 from model import *
 from utils import *
 
 
-class ServerGUI:
+class Server:
 
     '''
         INICIALIZA A INTERFACE GRÁFICA DO SERVIDOR
     '''
     def __init__(self):
         # cria e configrua a janela
-        self.window = Tk()
-        self.window.title('Chatroom ABC Bolinhas - Servidor')
-        self.window.geometry('870x700+0+0')
-        self.window.configure(background='#2b2d42', pady=30)
-        self.window.protocol('WM_DELETE_WINDOW', self._close)
+        self.gui_helper = GUIHelper()
+        self.window = self.gui_helper.window_build(self._close_callback)
 
         # inicializa alguns atributos
         self.clients = []
@@ -40,31 +38,21 @@ class ServerGUI:
         CONSTRÓI A AREA DE LOG
     '''
     def _build_message_area(self):
-        lb_messages = LabelFrame(self.window, text='Logs do servidor', height=30, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-        self.f_messages = Text(lb_messages, height=28, width=59, background='#edf2f4', font=('Arial', 14))
-        self.f_messages.configure(state='disabled')
-        self.f_messages.pack()
-        lb_messages.grid(row=0, column=0, sticky='we', padx=10)
+        self.f_messages = self.gui_helper.message_area_build(self.window, 'Logs do servidor', height=28)
 
 
     '''
         CONSTRÓI A AREA DOS USUÁRIOS CONECTADOS
     '''
     def _build_connecteds_area(self):
-        lb_connecteds = LabelFrame(self.window, text='Conectados', height=30, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-        self.f_connecteds = Listbox(lb_connecteds, height=27, width=15, background='#edf2f4', font=('Arial', 14))
-        self.f_connecteds.pack()
-        lb_connecteds.grid(row=0, column=1)
+        self.f_connecteds = self.gui_helper.connecteds_area_build(self.window, 'Conectados', height=27)
 
 
     '''
         HELPER QUE EXIBE OS LOGS NA TELA
     '''
     def _show_message_on_screen(self, message):
-        self.f_messages.configure(state='normal')
-        self.f_messages.insert(INSERT, f'{message} \n')
-        self.f_messages.see(END)
-        self.f_messages.configure(state='disabled')
+        self.gui_helper.update_message_area(self.f_messages, message)
 
 
     '''
@@ -184,7 +172,7 @@ class ServerGUI:
     def get_login_by_client(self, client):
         index = self.clients.index(client)
         return self.logins[index]
-
+        
 
     '''
         RECEBE O ARQUIVO DO CLIENTE E SALVA NO SERVIDOR
@@ -194,6 +182,13 @@ class ServerGUI:
         the_recipient = None
         received_file_name = message # recebe o nome do arquivo enviado
         saved_file_name = f'{threadId}.jpg' # gera nome único para salvar o arquivo recebido
+
+        # se não existir, cria o diretório onde será salvo os arquivos no servidor
+        if not path.isdir('server_files'):
+            try:
+                os.mkdir('server_files', 777)
+            except:
+                pass
 
         # abre um arquio para salvar no servidor
         arq = open(f'server_files{os.path.sep}{saved_file_name}', 'wb')
@@ -359,7 +354,7 @@ class ServerGUI:
     '''
         CALLBACK QUE ESCUTA QUANDO A JANELA É FECHADA
     '''
-    def _close(self):
+    def _close_callback(self):
         os._exit(0)
         self.window.destroy()
 
@@ -373,8 +368,7 @@ class ServerGUI:
         self.server.listen()
         print('Servidor online...')
         threading.Thread(target=self.receive).start()
+        self.window.mainloop()
 
 
-instance = ServerGUI()
-instance.run()
-instance.window.mainloop()
+Server().run()

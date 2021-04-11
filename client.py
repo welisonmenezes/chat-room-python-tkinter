@@ -1,22 +1,17 @@
 import socket, threading, time, os
-import tkinter as tk
-from tkinter import *
-from tkinter import filedialog
+from gui_helper import *
 from model import *
 from utils import *
 
-class ClientGUI:
+class Client:
 
     '''
         INICIALIZA A INTERFACE GRÁFICA DA APLICAÇÃO
     '''
     def __init__(self):
         # cria e configura a janela
-        self.window = Tk()
-        self.window.title('Chatroom ABC Bolinhas')
-        self.window.geometry('870x700+0+0')
-        self.window.configure(background='#2b2d42', pady=30)
-        self.window.protocol('WM_DELETE_WINDOW', self._close)
+        self.gui_helper = GUIHelper()
+        self.window = self.gui_helper.window_build(self._close_callback)
 
         # chama metodo pra construir os elementos da tela
         self._build()
@@ -41,124 +36,67 @@ class ClientGUI:
         CONSTRÓI A AREA DE MENSAGEM
     '''
     def _build_message_area(self):
-        lb_messages = LabelFrame(self.window, text='Mensagens recebidas', height=30, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-        self.f_messages = Text(lb_messages, height=22, width=59, background='#edf2f4', font=('Arial', 14))
-        self.f_messages.configure(state='disabled')
-        self.f_messages.pack()
-        lb_messages.grid(row=0, column=0, sticky='we', padx=10)
+        self.f_messages = self.gui_helper.message_area_build(self.window, 'Mensagens recebidas:')
 
 
     '''
         CONSTRÓI A AREA DOS USUÁRIOS CONECTADOS
     '''
     def _build_connecteds_area(self):
-        lb_connecteds = LabelFrame(self.window, text='Enviar para:', height=30, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-        self.f_connecteds = Listbox(lb_connecteds, height=21, width=15, background='#edf2f4', font=('Arial', 14))
-        self.f_connecteds.pack()
-        lb_connecteds.grid(row=0, column=1)
+        self.f_connecteds = self.gui_helper.connecteds_area_build(self.window, 'Enviar para:')
 
 
     '''
         CONSTRÓI A AREA ENVIO DE MENSAGEM
     '''
     def _build_entry_area(self):
-        lb_text = LabelFrame(self.window, text='Digite uma mensagem:', height=5, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-        self.f_text = Entry(lb_text, width=60, background='#edf2f4', font=('Arial', 14))
-        self.f_text.pack(side=LEFT)
-        lb_text.grid(row=1, column=0, sticky='we', padx=10, ipady=6, pady=10)
+        self.f_text = self.gui_helper.entry_area_build(self.window, 'Digite uma mensagem:')
 
     
     '''
         CONSTRÓI A AREA ONDE APARECE O NOME DO USUÁRIO CORRENTE
     '''
     def _build_you_area(self):
-        lb_you = LabelFrame(self.window, text='Conectado como:', height=5, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-        self.f_you_label = Label(lb_you, text='', fg='white', background='#8d99ae', font=('Arial', 13, 'bold'), padx=10)
-        self.f_you_label.pack(side=LEFT)
-        lb_you.grid(row=1, column=1, sticky='we', padx=10, ipady=6, pady=10)
+        self.f_you_label = self.gui_helper.connected_area_build(self.window, 'Conectado como:')
 
 
     '''
         CONSTRÓI A AREA DE AÇÕES (BOTÕES)
     '''
     def _build_actions_area(self):
-        lb_actions = LabelFrame(self.window, text='', height=10, background='#8d99ae', font=('Arial', 12, 'bold'), fg='white')
-
-        self.f_send = Button(lb_actions, text='Enviar', width=10, command=self._send_message, background='#8d99ae', font=('Arial', 12), fg='white', cursor='hand2', state=DISABLED)
-        self.f_send.pack(side=LEFT)
-
-        self.f_file = Button(lb_actions, text='Arquivo', width=10, command=self._send_file, background='#8d99ae', font=('Arial', 12), fg='white', cursor='hand2', state=DISABLED)
-        self.f_file.pack(side=LEFT)
-
-        self.f_logout = Button(lb_actions, text='Sair', width=10, background='#8d99ae', command=self._desconnect, font=('Arial', 12), fg='white', cursor='hand2', state=DISABLED)
-        self.f_logout.pack(side=RIGHT)
-
-        self.f_connect = Button(lb_actions, text='Conectar', width=10, command=self._popup, background='#64a6bd', font=('Arial', 12), fg='white', cursor='hand2')
-        self.f_connect.pack(side=RIGHT)
-
-        lb_actions.grid(row=2, column=0, columnspan=2, sticky='we', ipady=5, padx=10, ipadx=10)
+        actions = self.gui_helper.actions_area_build(self.window, self._send_message, self._send_file, self._desconnect, self._popup)
+        self.f_send, self.f_file, self.f_logout, self.f_connect = actions
 
 
     '''
         METODO QUE CONSTROI O POPUP (PARA FAZER O LOGIN)
     '''
     def _popup(self):
-        # cria e configura a janela de popup
-        self.popup = Tk()
-        self.popup.configure(background='#2b2d42', pady=30)
-        self.popup.title('Login') 
-        self.popup.protocol('WM_DELETE_WINDOW', self._close_popup)
-
-        # desabilita o botao de conectar
-        self.f_connect['state'] = DISABLED
-        self.f_connect['background'] = '#8d99ae'
-
-        # chama método que constrói os elementos do popup
-        self._build_popup_elements()
-        
-        # starta o popup
+        self.popup = self.gui_helper.login_popup_build(self.window, 'Login', self._open_popup_callback, self._close_popup_callback)
         self.popup.mainloop()
 
 
     '''
         METODO QUE CONSTROI OS ELEMENTOS DE TELA DO POPUP
     '''
-    def _build_popup_elements(self):
-        f_label_login = Label(self.popup, text='Informe seu login', fg='white', background='#2b2d42', font=('Arial', 12))
-        f_label_login.grid(row=0, column=0)
-        self.f_login = Entry(self.popup, width=30, background='#edf2f4', font=('Arial', 14))
-        self.f_login.grid(row=1, column=0, sticky='we', padx=10, ipady=6, pady=10)
-        self.f_do_login = Button(self.popup, text='Entrar', width=10, command=self._do_login, background='#64a6bd', font=('Arial', 12), fg='white', cursor='hand2')
-        self.f_do_login.grid(row=1, column=1, sticky='we', padx=10, ipady=6, pady=10)
-        self.f_label_fail = Label(self.popup, text='', fg='#ef233c', background='#2b2d42', font=('Arial', 12))
+    def _open_popup_callback(self, popup):
+        self.f_login, self.f_do_login, self.f_label_fail = self.gui_helper.login_popup_elements_build(popup, 'Informe seu login', self._do_login)
+        self.f_connect['state'] = DISABLED
+        self.f_connect['background'] = '#8d99ae'
 
     
     '''
         HABILITA OS BOTÕES PARA QUANDO O USUÁRI ESTÁ CONECTADO
     '''
     def _enable_actions(self):
-        self.f_send['state'] = NORMAL
-        self.f_send['background'] = '#5BBA6F'
-        self.f_file['state'] = NORMAL
-        self.f_file['background'] = '#395697'
-        self.f_connect['state'] = DISABLED
-        self.f_connect['background'] = '#8d99ae'
-        self.f_logout['state'] = NORMAL
-        self.f_logout['background'] = '#ef233c'
+        self.gui_helper.enable_actions(self)
 
     
     '''
         DESABILITA OS BOTÕES PARA QUANDO O USUÁRI ESTÁ DESCONECTADO
     '''
     def _disable_actions(self):
-        self.f_send['state'] = DISABLED
-        self.f_send['background'] = '#8d99ae'
-        self.f_file['state'] = DISABLED
-        self.f_file['background'] = '#8d99ae'
-        self.f_connect['state'] = NORMAL
-        self.f_connect['background'] = '#64a6bd'
-        self.f_logout['state'] = DISABLED
-        self.f_logout['background'] = '#8d99ae'
+        self.gui_helper.disabled_actions(self)
 
 
     '''
@@ -206,10 +144,7 @@ class ClientGUI:
         HELPER QUE EXIBE AS MENSAGENS RECEBIDAS NA TELA
     '''
     def _show_message_on_screen(self, message):
-        self.f_messages.configure(state='normal')
-        self.f_messages.insert(INSERT, f'{message} \n')
-        self.f_messages.see(END)
-        self.f_messages.configure(state='disabled')
+        self.gui_helper.update_message_area(self.f_messages, message)
 
 
     '''
@@ -293,7 +228,6 @@ class ClientGUI:
 
             # fecha o arquivo
             selected_file.close()
-            print('Arquivo de envio fechado.')
 
 
     '''
@@ -407,7 +341,7 @@ class ClientGUI:
     '''
         CALLBACK QUE ESCUTA QUANDO A JANELA É FECHADA
     '''
-    def _close(self):
+    def _close_callback(self):
         self.window.destroy()
         self.client.close()
         try:
@@ -429,7 +363,7 @@ class ClientGUI:
     '''
         CALLBACK QUE ESCUTA QUANDO O POPUP É FECHADO
     '''
-    def _close_popup(self):
+    def _close_popup_callback(self):
         self.popup.destroy()
 
         # habilita botão de conectar
@@ -456,4 +390,4 @@ class ClientGUI:
         self.window.mainloop()
     
 
-ClientGUI().run()
+Client().run()
